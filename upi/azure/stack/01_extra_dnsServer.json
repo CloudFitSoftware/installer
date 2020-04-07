@@ -1,0 +1,168 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "location": {
+            "defaultValue": "ppe4",
+            "type": "String"
+        },
+        "virtualMachineName": {
+            "defaultValue": "vmdnsserver",
+            "type": "String"
+        },
+        "virtualMachineSize": {
+            "defaultValue": "Standard_D2_v2",
+            "type": "String"
+        },
+        "adminUsername": {
+            "defaultValue": "cloudfit",
+            "type": "String"
+        },
+        "baseName": {
+            "minLength": 1,
+            "type": "String",
+            "metadata": {
+                "description": "Base name to be used in resource names (usually the cluster's Infra ID)"
+            }
+        },
+        "networkInterfaceName": {
+            "defaultValue": "vmdnsserver283",
+            "type": "String"
+        },
+        "networkSecurityGroupName": {
+            "defaultValue": "vmdnsserver-nsg",
+            "type": "String"
+        },
+        "adminPassword": {
+            "type": "SecureString"
+        },
+        "publicIpAddressName": {
+            "defaultValue": "vmdnsserver-ip",
+            "type": "String"
+        },
+        "publicIpAddressType": {
+            "defaultValue": "Dynamic",
+            "type": "String"
+        },
+        "publicIpAddressSku": {
+            "defaultValue": "Basic",
+            "type": "String"
+        }
+    },
+    "variables": {
+        "virtualNetworkName": "[concat(parameters('baseName'), '-vnet')]",
+        "virtualNetworkID": "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworkName'))]",
+        "masterSubnetName": "[concat(parameters('baseName'), '-master-subnet')]",
+        "masterSubnetRef": "[concat(variables('virtualNetworkID'), '/subnets/', variables('masterSubnetName'))]",
+        "masterPublicIpAddressName": "[concat(parameters('baseName'), '-master-pip')]",
+        "masterPublicIpAddressID": "[resourceId('Microsoft.Network/publicIPAddresses', variables('masterPublicIpAddressName'))]",
+        "masterLoadBalancerName": "[concat(parameters('baseName'), '-public-lb')]",
+        "masterLoadBalancerID": "[resourceId('Microsoft.Network/loadBalancers', variables('masterLoadBalancerName'))]",
+        "internalLoadBalancerName": "[concat(parameters('baseName'), '-internal-lb')]",
+        "internalLoadBalancerID": "[resourceId('Microsoft.Network/loadBalancers', variables('internalLoadBalancerName'))]",
+        "skuName": "Standard"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[parameters('virtualMachineName')]",
+            "apiVersion": "2017-03-30",
+            "location": "[parameters('location')]",
+            "properties": {
+                "osProfile": {
+                    "computerName": "[parameters('virtualMachineName')]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPassword')]",
+                    "windowsConfiguration": {
+                        "provisionVmAgent": "true"
+                    }
+                },
+                "hardwareProfile": {
+                    "vmSize": "[parameters('virtualMachineSize')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "MicrosoftWindowsServer",
+                        "offer": "WindowsServer",
+                        "sku": "2019-Datacenter",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "createOption": "fromImage",
+                        "managedDisk": {
+                            "storageAccountType": "Standard_LRS"
+                        }
+                    },
+                    "dataDisks": []
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', parameters('networkInterfaceName'))]"
+                        }
+                    ]
+                },
+                "licenseType": "Windows_Server"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Network/networkInterfaces/', parameters('networkInterfaceName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[parameters('networkInterfaceName')]",
+            "apiVersion": "2017-10-01",
+            "location": "[parameters('location')]",
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "subnet": {
+                                "id": "[variables('masterSubnetRef')]"
+                            },
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIpAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIpAddresses', parameters('publicIpAddressName'))]"
+                            }
+                        }
+                    }
+                ],
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('networkSecurityGroupName'))]"
+                }
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Network/publicIpAddresses/', parameters('publicIpAddressName'))]",
+                "[concat('Microsoft.Network/networkSecurityGroups/', parameters('networkSecurityGroupName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Network/publicIpAddresses",
+            "sku": {
+                "name": "[parameters('publicIpAddressSku')]"
+            },
+            "name": "[parameters('publicIpAddressName')]",
+            "apiVersion": "2017-10-01",
+            "location": "[parameters('location')]",
+            "properties": {
+                "publicIpAllocationMethod": "[parameters('publicIpAddressType')]"
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "[parameters('networkSecurityGroupName')]",
+            "apiVersion": "2017-10-01",
+            "location": "[parameters('location')]",
+            "properties": {
+                "securityRules": []
+            }
+        }
+    ],
+    "outputs": {
+        "adminUsername": {
+            "type": "String",
+            "value": "[parameters('adminUsername')]"
+        }
+    }
+}
