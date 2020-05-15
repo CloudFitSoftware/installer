@@ -39,7 +39,6 @@ The following resource types must be available in your region, check [azure avai
 Service principal with contributor access to a created resource group.
 
 Ability to log into azure with az cli from your host machine
-(https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest)
 
 ### Creating Install Config
 
