@@ -1,6 +1,6 @@
 # Summary
 
-This document outlines the procedure for installation of an OpenShift 4.x cluster inot a private Azure region using the 4.3 installer. As of writing, Openshift supports a limisted number of regions which exclusdes some customers from using the installer to create their cluster.
+This document outlines the procedure for installation of an OpenShift 4.x cluster.  Not a private Azure region using the 4.3 installer. As of this writing, OpenShift supports a limited number of regions which excludes some customers from using the installer to create their cluster.
 
 ## Install Procedures
 
@@ -13,8 +13,8 @@ The following applications must be available in your path
 - Azure Command Line Interface [(az)](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest)
 - Json Query [(jq)](https://stedolan.github.io/jq/)
 - YAML Query [(yq)](https://pypi.org/project/yq/)
-- Openshift Client [(oc)](https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/oc/4.3/linux/)
-- Openshift Installer [(openshift-install)](https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/4.3.21/)
+- OpenShift Client [(oc)](https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/oc/4.3/linux/)
+- OpenShift Installer [(openshift-install)](https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/4.3.21/)
 - Kubernetes Client [(kubectl)](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
 
 Azure Government subscription
@@ -39,6 +39,7 @@ The following resource types must be available in your region, check [azure avai
 Service principal with contributor access to a created resource group.
 
 Ability to log into azure with az cli from your host machine
+(https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest)
 
 ### Creating Install Config
 
