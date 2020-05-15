@@ -174,7 +174,7 @@ source vars-backup.txt
 echo $CLUSTER_NAME
 ```
 
-#### Create Azure Resource Group and Cluster Prerequisits
+#### Create Azure Resource Group and Cluster Prerequisites
 
 The following section will
 
