@@ -235,7 +235,7 @@
                 "diagnosticsProfile": {
                     "bootDiagnostics": {
                         "enabled": "true",
-                        "storageUri": "[concat('https://',parameters('storageAccountName'),'.',parameters('blobStorageEndpoint'),'/')]"
+                        "storageUri": "[concat('https://',parameters('storageAccountName'),'.',parameters('blobStorageEndpoint'))]"
                     }
                 },
                 "networkProfile": {
