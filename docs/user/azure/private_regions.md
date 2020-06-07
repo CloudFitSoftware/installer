@@ -121,12 +121,22 @@ SSH_KEY=$(yq -r .sshKey install-config.yaml | xargs)
 BASE_DOMAIN=$(yq -r .baseDomain install-config.yaml)
 BASE_DOMAIN_RESOURCE_GROUP=$(yq -r .platform.azure.baseDomainResourceGroupName install-config.yaml)
 
+# Change region back to eastus so manifests will create
+python3 -c '
+import yaml;
+path = "install-config.yaml";
+data = yaml.full_load(open(path));
+data["platform"]["azure"]["region"] = "eastus";
+open(path, "w").write(yaml.dump(data, default_flow_style=False))'
+
+
 python3 -c '
 import yaml;
 path = "install-config.yaml";
 data = yaml.full_load(open(path));
 data["compute"][0]["replicas"] = 0;
 open(path, "w").write(yaml.dump(data, default_flow_style=False))'
+
 openshift-install create manifests || throw "Unable to create manifests"
 rm -fv openshift/99_openshift-cluster-api_master-machines-*.yaml
 rm -fv openshift/99_openshift-cluster-api_worker-machineset-*.yaml
