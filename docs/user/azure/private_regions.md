@@ -2,6 +2,8 @@
 
 This document outlines the procedure for installation of an OpenShift 4.x cluster.  Not a private Azure region using the 4.3 installer. As of this writing, OpenShift supports a limited number of regions which excludes some customers from using the installer to create their cluster.
 
+This document works with openshift 4.3.x and 4.4.x
+
 ## Install Procedures
 
 ### Prerequisites
@@ -13,6 +15,7 @@ The following applications must be available in your path
 - Azure Command Line Interface [(az)](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest)
 - Json Query [(jq)](https://stedolan.github.io/jq/)
 - YAML Query [(yq)](https://pypi.org/project/yq/)
+  - must be version <3.0.0
 - OpenShift Client [(oc)](https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/oc/4.3/linux/)
 - OpenShift Installer [(openshift-install)](https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/4.3.21/)
 - Kubernetes Client [(kubectl)](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
@@ -81,7 +84,7 @@ networking:
 platform:
   azure:
     baseDomainResourceGroupName: <YOUR_DNS_ZONE_RG>
-    region: <YOUR_AZURE_GOVERNMENT_REGION>
+    region: <YOUR_AZURE_PULIC_REGSION>
 publish: External
 pullSecret: '<YOUR_PULL_SECRET>'
 sshKey: |
@@ -92,10 +95,62 @@ Create or modify this file to ensure the right azure environment secrets get pas
 
 ```json
 {
-  "subscriptionId":"<YOUR_AZURE_GOV_SUBSCRIPTION_ID",
-  "clientId":"<YOUR_AZURE_GOV_CLIENT_ID>",
-  "clientSecret":"<YOUR_AZURE_GOV_CLIENT_SECRET>",
-  "tenantId":"<YOUR_AZURE_GOV_TENANT_ID>"
+  "subscriptionId":"<YOUR_AZURE_PUBLIC_SUBSCRIPTION_ID",
+  "clientId":"<YOUR_AZURE_PUBLIC_CLIENT_ID>",
+  "clientSecret":"<YOUR_AZURE_PUBLIC_CLIENT_SECRET>",
+  "tenantId":"<YOUR_AZURE_PUBLIC_TENANT_ID>"
+}
+```
+
+The other option is to use the openshift-installer create installer-config with the following instructions
+
+- select your private key
+- platform azure
+- subscription id: valid public azure id
+- tenant id: valid public azure tenant id
+- client id: valid public azure client id
+- client secret: valid public azure client secret
+- region: eastus
+- base domain: valid public dns (doesn't have to be real, just a resource)
+- cluster name: <your cluster name, must be valid storage account name>
+- pull secret: value from https://cloud.redhat.com/openshift
+
+### Useful Functions
+
+These two functions are used throughout this readme as helpers, please load them into your environment.
+
+```bash
+# A function to write a var name and value out to a file for re-loading later
+function saveVar()
+{
+  varname=$1
+  varValue=$2
+  echo "${varname}=\"${varValue}\"" >> restore.sh
+}
+```
+
+```bash
+# A function to enable debugging of azure commands
+function echoDo()
+# $1: Description
+# $2: Command
+{
+    redirect=""
+    if [ "$LOGOUTPUT" == "yes" ]; then
+      redirect="| tee -a ${LOGFILE}"
+    fi
+    echo "Task: $1" $redirect
+    shift
+    C=''
+    for i in "$@"; do 
+       i="${i//\\/\\\\}"
+       C="$C \"${i//\"/\\\"}\""
+    done
+    echo $C
+    eval $C $redirect
+    res=$?
+    echo "--->> Result Code $res" $redirect
+    return $res
 }
 ```
 
@@ -116,7 +171,9 @@ read -sp "Azure password: " AZ_PASS && echo && az login --service-principal -u <
 
 # Set environment Vars
 CLUSTER_NAME=$(yq -r .metadata.name install-config.yaml)
-AZURE_REGION=$(yq -r .platform.azure.region install-config.yaml)
+echo "enter a valid azure gov region"
+read AZURE_REGION
+export AZURE_REGION
 SSH_KEY=$(yq -r .sshKey install-config.yaml | xargs)
 BASE_DOMAIN=$(yq -r .baseDomain install-config.yaml)
 BASE_DOMAIN_RESOURCE_GROUP=$(yq -r .platform.azure.baseDomainResourceGroupName install-config.yaml)
@@ -140,8 +197,12 @@ open(path, "w").write(yaml.dump(data, default_flow_style=False))'
 openshift-install create manifests || throw "Unable to create manifests"
 rm -fv openshift/99_openshift-cluster-api_master-machines-*.yaml
 rm -fv openshift/99_openshift-cluster-api_worker-machineset-*.yaml
-# Change cloud provider
+
+# Change cloud provider configuration
 sed -i 's/AzurePublicCloud/AzureUSGovernmentCloud/' manifests/cloud-provider-config.yaml
+#change manifests/cloud-provider-config.yaml to valid azure MAG tenantID, subscription id, and location (plain text)
+#change openshift/99_cloud-creds-secret.yaml to valid Azure MAG values.
+#values must be base64 encoded
 
 #Let the masters be schedulable
 python3 -c '
@@ -165,21 +226,18 @@ RESOURCE_GROUP=$(yq -r '.status.platformStatus.azure.resourceGroupName' manifest
 
 openshift-install create ignition-configs
 
-# Output vars to a backup file
-echo "CLUSTER_NAME=$CLUSTER_NAME" >> vars-backup.txt
-echo "AZURE_REGION=$AZURE_REGION" >> vars-backup.txt
-echo "SSH_KEY=$SSH_KEY" >> vars-backup.txt
-echo "BASE_DOMAIN=$BASE_DOMAIN" >> vars-backup.txt
-echo "BASE_DOMAIN_RESOURCE_GROUP=$BASE_DOMAIN_RESOURCE_GROUP" >> vars-backup.txt
-echo "INFRA_ID=$INFRA_ID" >> vars-backup.txt
-echo "RESOURCE_GROUP=$RESOURCE_GROUP" >> vars-backup.txt
+saveVar CLUSTER_NAME $CLUSTER_NAME
+saveVar AZURE_REGION $AZURE_REGION
+saveVar SSH_KEY "${SSH_KEY}"
+saveVar BASE_DOMAIN $BASE_DOMAIN
+saveVar BASE_DOMAIN_RESOURCE_GROUP $BASE_DOMAIN_RESOURCE_GROUP
 ```
 
 If you close your shell during this install you can restore your variables by running the following command
 
 ```bash
 # To restore shell varables run
-source vars-backup.txt
+source restore.sh
 # Test value
 echo $CLUSTER_NAME
 ```
@@ -198,36 +256,18 @@ The following section will
 Create the following function for better logging and output
 
 ```bash
-function echoDo()
-# $1: Description
-# $2: Command
-{
-    redirect=""
-    if [ "$LOGOUTPUT" == "yes" ]; then
-      redirect="| tee -a ${LOGFILE}"
-    fi
-    echo "Task: $1" $redirect
-    shift
-    C=''
-    for i in "$@"; do 
-       i="${i//\\/\\\\}"
-       C="$C \"${i//\"/\\\"}\""
-    done
-    echo $C
-    eval $C $redirect
-    res=$?
-    echo "--->> Result Code $res" $redirect
-    return $res
-}
 #Set log output and file location
 LOGOUTPUT="yes"
 LOGFILE="~/openshift_install/azure-install.log"
 azout="-o none"
+OCPRELEASE="4.4"
+
 
 #Backup vars
-echo "LOGOUTPUT=$LOGOUTPUT" >> vars-backup.txt
-echo "LOGFILE=$LOGFILE" >> vars-backup.txt
-echo "azout=$azout" >> vars-backup.txt
+saveVar LOGOUTPUT $LOGOUTPUT
+saveVar LOGFILE $LOGFILE
+saveVar azout "${azout}"
+saveVar OCPRELEASE $OCPRELEASE
 ```
 
 Create the mentioned resources
@@ -260,12 +300,12 @@ do
 done
 
 #Backup vars
-echo "ACCOUNT_KEY=$ACCOUNT_KEY" >> vars-backup.txt
-echo "VHD_URL=$VHD_URL" >> vars-backup.txt
-echo "PRINCIPAL_ID=$PRINCIPAL_ID" >> vars-backup.txt
-echo "RESOURCE_GROUP_ID=$RESOURCE_GROUP_ID" >> vars-backup.txt
-echo "nsServer0=$nsServer0" >> vars-backup.txt
-echo "nsServer1=$nsServer1" >> vars-backup.txt
+saveVar VHD_URL "${VHD_URL}"
+saveVar ACCOUNT_KEY $ACCOUNT_KEY
+saveVar PRINCIPAL_ID $PRINCIPAL_ID
+saveVar RESOURCE_GROUP_ID $RESOURCE_GROUP_ID
+saveVar nsServer0 $nsServer0
+saveVar nsServer1 $nsServer1
 ```
 
 ### Deploy Cluster
@@ -311,12 +351,14 @@ echoDo "Create masters" az deployment group create -g $RESOURCE_GROUP \
   --parameters privateDNSZoneName="${CLUSTER_NAME}.${BASE_DOMAIN}" \
   --parameters baseName="$INFRA_ID" \
   --no-wait ${azout}
-echoDo "Wait for OCP Bootstrap to complete" openshift-install wait-for bootstrap-complete --log-level debug
 
 # Backup Variables
-echo "PUBLIC_IP=$PUBLIC_IP" >> vars-backup.txt
-echo "BOOTSTRAP_URL=$BOOTSTRAP_URL" >> vars-backup.txt
-echo "BOOTSTRAP_IGNITION=$BOOTSTRAP_IGNITION" >> vars-backup.txt
+saveVar VHD_BLOB_URL "${VHD_BLOB_URL}"
+saveVar PUBLIC_IP $PUBLIC_IP
+saveVar BOOTSTRAP_URL $BOOTSTRAP_URL
+saveVar BOOTSTRAP_IGNITION $BOOTSTRAP_IGNITION
+
+openshift-install wait-for bootstrap-complete --log-level debug
 ```
 
 ## Post Cluster Startup
@@ -407,10 +449,16 @@ Apply the storage class
 oc apply -f azure-disk.yaml
 ```
 
+Wait for cluster install to complete and login to web gui
+```bash
+openshift-install44 wait-for install-complete
+```
+
 ## Known Issues
 
 - Image Registry doesn't work
 - DNS Operator doesn't work
+  - this is mitigated by adding the *.apps A record to the dns zones
 - OCP cluster won't auto scale
   - To work around this you can re-run the workers arm template
 - Cluster secrets operator doesn't work
