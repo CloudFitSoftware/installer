@@ -3,6 +3,7 @@ resource "ironic_node_v1" "openshift-master-host" {
   name           = var.hosts[count.index]["name"]
   resource_class = "baremetal"
 
+  inspect   = true
   clean     = true
   available = true
 
@@ -41,8 +42,15 @@ resource "ironic_deployment" "openshift-master-deployment" {
     count.index,
   )
 
-  instance_info         = var.instance_infos[count.index]
-  user_data_url         = var.ignition_url
-  user_data_url_ca_cert = var.ignition_url_ca_cert
+  instance_info = var.instance_infos[count.index]
+  user_data     = var.ignition
 }
 
+data "ironic_introspection" "openshift-master-introspection" {
+  count = var.master_count
+
+  uuid = element(
+    ironic_node_v1.openshift-master-host.*.id,
+    count.index,
+  )
+}

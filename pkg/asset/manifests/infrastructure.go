@@ -20,7 +20,6 @@ import (
 	"github.com/openshift/installer/pkg/types/libvirt"
 	"github.com/openshift/installer/pkg/types/none"
 	"github.com/openshift/installer/pkg/types/openstack"
-	openstackdefaults "github.com/openshift/installer/pkg/types/openstack/defaults"
 	"github.com/openshift/installer/pkg/types/ovirt"
 	"github.com/openshift/installer/pkg/types/vsphere"
 )
@@ -112,6 +111,7 @@ func (i *Infrastructure) Generate(dependencies asset.Parents) error {
 		config.Status.PlatformStatus.Azure = &configv1.AzurePlatformStatus{
 			ResourceGroupName:        rg,
 			NetworkResourceGroupName: rg,
+			CloudName:                configv1.AzureCloudEnvironment(installConfig.Config.Platform.Azure.CloudName),
 		}
 		if nrg := installConfig.Config.Platform.Azure.NetworkResourceGroupName; nrg != "" {
 			config.Status.PlatformStatus.Azure.NetworkResourceGroupName = nrg
@@ -120,7 +120,6 @@ func (i *Infrastructure) Generate(dependencies asset.Parents) error {
 		config.Spec.PlatformSpec.Type = configv1.BareMetalPlatformType
 		config.Status.PlatformStatus.BareMetal = &configv1.BareMetalPlatformStatus{
 			APIServerInternalIP: installConfig.Config.Platform.BareMetal.APIVIP,
-			NodeDNSIP:           installConfig.Config.Platform.BareMetal.DNSVIP,
 			IngressIP:           installConfig.Config.Platform.BareMetal.IngressVIP,
 		}
 	case gcp.Name:
@@ -144,13 +143,8 @@ func (i *Infrastructure) Generate(dependencies asset.Parents) error {
 		config.Spec.PlatformSpec.Type = configv1.NonePlatformType
 	case openstack.Name:
 		config.Spec.PlatformSpec.Type = configv1.OpenStackPlatformType
-		dnsVIP, err := openstackdefaults.DNSVIP(installConfig.Config.Networking)
-		if err != nil {
-			return err
-		}
 		config.Status.PlatformStatus.OpenStack = &configv1.OpenStackPlatformStatus{
 			APIServerInternalIP: installConfig.Config.OpenStack.APIVIP,
-			NodeDNSIP:           dnsVIP.String(),
 			IngressIP:           installConfig.Config.OpenStack.IngressVIP,
 		}
 	case vsphere.Name:
@@ -165,7 +159,6 @@ func (i *Infrastructure) Generate(dependencies asset.Parents) error {
 		config.Spec.PlatformSpec.Type = configv1.OvirtPlatformType
 		config.Status.PlatformStatus.Ovirt = &configv1.OvirtPlatformStatus{
 			APIServerInternalIP: installConfig.Config.Ovirt.APIVIP,
-			NodeDNSIP:           installConfig.Config.Ovirt.DNSVIP,
 			IngressIP:           installConfig.Config.Ovirt.IngressVIP,
 		}
 	default:

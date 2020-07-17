@@ -4,11 +4,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/openshift/installer/pkg/types/azure"
 )
 
 func TestCloudProviderConfig(t *testing.T) {
 
 	config := CloudProviderConfig{
+		CloudName:                azure.PublicCloud,
 		GroupLocation:            "westeurope",
 		ResourcePrefix:           "clusterid",
 		SubscriptionID:           "subID",
@@ -43,11 +46,11 @@ func TestCloudProviderConfig(t *testing.T) {
 	"cloudProviderBackoffExponent": 0,
 	"cloudProviderBackoffDuration": 6,
 	"cloudProviderBackoffJitter": 0,
-	"cloudProviderRateLimit": true,
-	"cloudProviderRateLimitQPS": 6,
-	"cloudProviderRateLimitBucket": 10,
-	"cloudProviderRateLimitQPSWrite": 6,
-	"cloudProviderRateLimitBucketWrite": 10,
+	"cloudProviderRateLimit": false,
+	"cloudProviderRateLimitQPS": 0,
+	"cloudProviderRateLimitBucket": 0,
+	"cloudProviderRateLimitQPSWrite": 0,
+	"cloudProviderRateLimitBucketWrite": 0,
 	"useInstanceMetadata": true,
 	"loadBalancerSku": "standard",
 	"excludeMasterFromStandardLB": null,

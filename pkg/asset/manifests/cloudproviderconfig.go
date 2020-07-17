@@ -13,7 +13,6 @@ import (
 
 	"github.com/openshift/installer/pkg/asset"
 	"github.com/openshift/installer/pkg/asset/installconfig"
-	icazure "github.com/openshift/installer/pkg/asset/installconfig/azure"
 	icopenstack "github.com/openshift/installer/pkg/asset/installconfig/openstack"
 	"github.com/openshift/installer/pkg/asset/manifests/azure"
 	gcpmanifests "github.com/openshift/installer/pkg/asset/manifests/gcp"
@@ -103,12 +102,12 @@ func (cpc *CloudProviderConfig) Generate(dependencies asset.Parents) error {
 			cm.Data["ca-bundle.pem"] = string(caFile)
 		}
 	case azuretypes.Name:
-		session, err := icazure.GetSession()
+		session, err := installConfig.Azure.Session()
 		if err != nil {
 			return errors.Wrap(err, "could not get azure session")
 		}
 
-		nsg := fmt.Sprintf("%s-node-nsg", clusterID.InfraID)
+		nsg := fmt.Sprintf("%s-nsg", clusterID.InfraID)
 		nrg := fmt.Sprintf("%s-rg", clusterID.InfraID)
 		if installConfig.Config.Azure.NetworkResourceGroupName != "" {
 			nrg = installConfig.Config.Azure.NetworkResourceGroupName
@@ -122,6 +121,7 @@ func (cpc *CloudProviderConfig) Generate(dependencies asset.Parents) error {
 			subnet = installConfig.Config.Azure.ComputeSubnet
 		}
 		azureConfig, err := azure.CloudProviderConfig{
+			CloudName:                installConfig.Config.Azure.CloudName,
 			GroupLocation:            installConfig.Config.Azure.Region,
 			ResourcePrefix:           clusterID.InfraID,
 			SubscriptionID:           session.Credentials.SubscriptionID,
@@ -146,8 +146,13 @@ func (cpc *CloudProviderConfig) Generate(dependencies asset.Parents) error {
 		}
 		cm.Data[cloudProviderConfigDataKey] = gcpConfig
 	case vspheretypes.Name:
+		folderPath := installConfig.Config.Platform.VSphere.Folder
+		if len(folderPath) == 0 {
+			dataCenter := installConfig.Config.Platform.VSphere.Datacenter
+			folderPath = fmt.Sprintf("/%s/vm/%s", dataCenter, clusterID.InfraID)
+		}
 		vsphereConfig, err := vspheremanifests.CloudProviderConfig(
-			installConfig.Config.ObjectMeta.Name,
+			folderPath,
 			installConfig.Config.Platform.VSphere,
 		)
 		if err != nil {

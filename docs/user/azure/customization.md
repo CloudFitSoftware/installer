@@ -12,12 +12,16 @@ The following options are available when using Azure:
 * `networkResourceGroupName` (optional string): The resource group where the Azure VNet is found.
 * `virtualNetwork` (optional string): The name of an existing VNet where the cluster infrastructure should be provisioned.
 * `controlPlaneSubnet` (optional string): An existing subnet which should be used for the cluster control plane.
-* `computeSubnet` (optional string): An existing subnet which should be used by cluster nodes. 
+* `computeSubnet` (optional string): An existing subnet which should be used by cluster nodes.
+* `outboundType` (optional string):  OutboundType is a strategy for how egress from cluster is achieved. Valid values are `Loadbalancer` or `UserDefinedRouting`
+    * `Loadbalancer` (default): LoadbalancerOutboundType uses Standard loadbalancer for egress from the cluster, see [docs][azure-lb-outbound]
+    * `UserDefinedRouting`: UserDefinedRoutingOutboundType uses user defined routing for egress from the cluster, see [docs][azure-udr-outbound]. User defined routing for egress can only be used when deploying clusters to pre-existing virtual networks.
 
 ## Machine pools
 
 * `osDisk` (optional object):
     * `diskSizeGB` (optional integer): The size of the disk in gigabytes (GB).
+    * `diskType` (optional string): The type of disk (allowed values are: `Premium_LRS`, `Standard_LRS`, and `StandardSSD_LRS`).
 * `type` (optional string): The Azure instance type.
 * `zones` (optional string slice): List of Azure availability zones that can be used (for example, `["1", "2", "3"]`).
 
@@ -65,6 +69,7 @@ controlPlane:
       type: Standard_DS4_v2
       osDisk:
         diskSizeGB: 512
+        diskType: Premium_LRS
   replicas: 3
 compute:
 - name: worker
@@ -73,6 +78,7 @@ compute:
       type: Standard_DS4_v2
       osDisk:
         diskSizeGB: 512
+        diskType: Standard_LRS
       zones:
       - "1"
       - "2"
@@ -84,9 +90,13 @@ platform:
   azure:
     region: centralus
     baseDomainResourceGroupName: os4-common
+    osDisk:
+        diskSizeGB: 512
+        diskType: Premium_LRS
 pullSecret: '{"auths": ...}'
 sshKey: ssh-ed25519 AAAA...
 ```
+
 ### Existing VNet
 
 An example Azure install config to use a pre-existing VNet and subnets:
@@ -104,6 +114,12 @@ platform:
     virtualNetwork: example_vnet
     controlPlaneSubnet: example_master_subnet
     computeSubnet: example_worker_subnet
+    osDisk:
+        diskSizeGB: 512
+        diskType: Premium_LRS
 pullSecret: '{"auths": ...}'
 sshKey: ssh-ed25519 AAAA...
 ```
+
+[azure-lb-outbound]: https://docs.microsoft.com/en-us/azure/load-balancer/load-balancer-outbound-connections#lb
+[azure-udr-outbound]: https://docs.microsoft.com/en-us/azure/virtual-network/virtual-networks-udr-overview

@@ -13,7 +13,7 @@ import (
 
 //DNSConfig exposes functions to choose the DNS settings
 type DNSConfig struct {
-	Session *Session
+	session *Session
 }
 
 //ZonesGetter fetches the DNS zones available for the installer
@@ -24,6 +24,11 @@ type ZonesGetter interface {
 //ZonesClient wraps the azure ZonesClient internal
 type ZonesClient struct {
 	azureClient azdns.ZonesClient
+}
+
+//RecordSetsClient wraps the azure RecordSetsClient internal
+type RecordSetsClient struct {
+	azureClient azdns.RecordSetsClient
 }
 
 //Zone represents an Azure DNS Zone
@@ -57,7 +62,7 @@ func transformZone(f func(s string) *Zone) survey.Transformer {
 func (config DNSConfig) GetDNSZoneID(rgName string, zoneName string) string {
 	return fmt.Sprintf(
 		"/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnszones/%s",
-		config.Session.Credentials.SubscriptionID,
+		config.session.Credentials.SubscriptionID,
 		rgName,
 		zoneName)
 }
@@ -67,7 +72,7 @@ func (config DNSConfig) GetDNSZoneID(rgName string, zoneName string) string {
 func (config DNSConfig) GetPrivateDNSZoneID(rgName string, zoneName string) string {
 	return fmt.Sprintf(
 		"/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/privateDnsZones/%s",
-		config.Session.Credentials.SubscriptionID,
+		config.session.Credentials.SubscriptionID,
 		rgName,
 		zoneName)
 }
@@ -75,7 +80,7 @@ func (config DNSConfig) GetPrivateDNSZoneID(rgName string, zoneName string) stri
 //GetDNSZone returns a DNS zone selected by survey
 func (config DNSConfig) GetDNSZone() (*Zone, error) {
 	//call azure api using the session to retrieve available base domain
-	zonesClient := newZonesClient(config.Session)
+	zonesClient := newZonesClient(config.session)
 	allZones, _ := zonesClient.GetAllPublicZones()
 	if len(allZones) == 0 {
 		return nil, errors.New("no public dns zone found in your subscription")
@@ -106,21 +111,29 @@ func (config DNSConfig) GetDNSZone() (*Zone, error) {
 
 }
 
+//GetDNSRecordSet gets a record set for the zone identified by publicZoneID
+func (config DNSConfig) GetDNSRecordSet(rgName string, zoneName string, relativeRecordSetName string, recordType azdns.RecordType) (*azdns.RecordSet, error) {
+	recordsetsClient := newRecordSetsClient(config.session)
+	return recordsetsClient.GetRecordSet(rgName, zoneName, relativeRecordSetName, recordType)
+}
+
 //NewDNSConfig returns a new DNSConfig struct that helps configuring the DNS
 //by querying your subscription and letting you choose
 //which domain you wish to use for the cluster
-func NewDNSConfig() (*DNSConfig, error) {
-	session, err := GetSession()
-	if err != nil {
-		return nil, errors.Wrap(err, "could not retrieve session information")
-	}
-	return &DNSConfig{Session: session}, nil
+func NewDNSConfig(ssn *Session) *DNSConfig {
+	return &DNSConfig{session: ssn}
 }
 
 func newZonesClient(session *Session) ZonesGetter {
 	azureClient := azdns.NewZonesClient(session.Credentials.SubscriptionID)
 	azureClient.Authorizer = session.Authorizer
 	return &ZonesClient{azureClient: azureClient}
+}
+
+func newRecordSetsClient(session *Session) *RecordSetsClient {
+	azureClient := azdns.NewRecordSetsClient(session.Credentials.SubscriptionID)
+	azureClient.Authorizer = session.Authorizer
+	return &RecordSetsClient{azureClient: azureClient}
 }
 
 //GetAllPublicZones get all public zones from the current subscription
@@ -140,4 +153,17 @@ func (client *ZonesClient) GetAllPublicZones() (map[string]string, error) {
 		}
 	}
 	return allZones, nil
+}
+
+//GetRecordSet gets an Azure DNS recordset by zone, name and recordset type
+func (client *RecordSetsClient) GetRecordSet(rgName string, zoneName string, relativeRecordSetName string, recordType azdns.RecordType) (*azdns.RecordSet, error) {
+	ctx, cancel := context.WithTimeout(context.TODO(), 30*time.Second)
+	defer cancel()
+
+	recordset, err := client.azureClient.Get(ctx, rgName, zoneName, relativeRecordSetName, recordType)
+	if err != nil {
+		return nil, err
+	}
+
+	return &recordset, nil
 }

@@ -25,6 +25,8 @@ import (
 	libvirtvalidation "github.com/openshift/installer/pkg/types/libvirt/validation"
 	"github.com/openshift/installer/pkg/types/openstack"
 	openstackvalidation "github.com/openshift/installer/pkg/types/openstack/validation"
+	"github.com/openshift/installer/pkg/types/ovirt"
+	ovirtvalidation "github.com/openshift/installer/pkg/types/ovirt/validation"
 	"github.com/openshift/installer/pkg/types/vsphere"
 	vspherevalidation "github.com/openshift/installer/pkg/types/vsphere/validation"
 	"github.com/openshift/installer/pkg/validate"
@@ -35,7 +37,7 @@ const (
 )
 
 // ValidateInstallConfig checks that the specified install config is valid.
-func ValidateInstallConfig(c *types.InstallConfig, openStackValidValuesFetcher openstackvalidation.ValidValuesFetcher) field.ErrorList {
+func ValidateInstallConfig(c *types.InstallConfig) field.ErrorList {
 	allErrs := field.ErrorList{}
 	if c.TypeMeta.APIVersion == "" {
 		return field.ErrorList{field.Required(field.NewPath("apiVersion"), "install-config version required")}
@@ -79,7 +81,7 @@ func ValidateInstallConfig(c *types.InstallConfig, openStackValidValuesFetcher o
 	} else {
 		allErrs = append(allErrs, field.Required(field.NewPath("networking"), "networking is required"))
 	}
-	allErrs = append(allErrs, validatePlatform(&c.Platform, field.NewPath("platform"), openStackValidValuesFetcher, c.Networking, c)...)
+	allErrs = append(allErrs, validatePlatform(&c.Platform, field.NewPath("platform"), c.Networking, c)...)
 	if c.ControlPlane != nil {
 		allErrs = append(allErrs, validateControlPlane(&c.Platform, c.ControlPlane, field.NewPath("controlPlane"))...)
 	} else {
@@ -204,7 +206,12 @@ func validateNetworkingIPVersion(n *types.Networking, p *types.Platform) field.E
 		switch {
 		case p.BareMetal != nil:
 		case p.None != nil:
+
 		case p.Azure != nil && os.Getenv("OPENSHIFT_INSTALL_AZURE_EMULATE_SINGLESTACK_IPV6") == "true":
+			if !presence["machineNetwork"].IPv4 || !presence["machineNetwork"].IPv6 {
+				allErrs = append(allErrs, field.Invalid(field.NewPath("networking"), "IPv6", "OPENSHIFT_INSTALL_AZURE_EMULATE_SINGLESTACK_IPV6 requires both IPv4 and IPv6 machineNetwork values"))
+			}
+
 		default:
 			allErrs = append(allErrs, field.Invalid(field.NewPath("networking"), "IPv6", "single-stack IPv6 is not supported for this platform"))
 		}
@@ -331,7 +338,7 @@ func validateCompute(platform *types.Platform, control *types.MachinePool, pools
 	return allErrs
 }
 
-func validatePlatform(platform *types.Platform, fldPath *field.Path, openStackValidValuesFetcher openstackvalidation.ValidValuesFetcher, network *types.Networking, c *types.InstallConfig) field.ErrorList {
+func validatePlatform(platform *types.Platform, fldPath *field.Path, network *types.Networking, c *types.InstallConfig) field.ErrorList {
 	allErrs := field.ErrorList{}
 	activePlatform := platform.Name()
 	platforms := make([]string, len(types.PlatformNames))
@@ -364,7 +371,7 @@ func validatePlatform(platform *types.Platform, fldPath *field.Path, openStackVa
 	}
 	if platform.OpenStack != nil {
 		validate(openstack.Name, platform.OpenStack, func(f *field.Path) field.ErrorList {
-			return openstackvalidation.ValidatePlatform(platform.OpenStack, network, f, openStackValidValuesFetcher, c)
+			return openstackvalidation.ValidatePlatform(platform.OpenStack, network, f, c)
 		})
 	}
 	if platform.VSphere != nil {
@@ -373,6 +380,11 @@ func validatePlatform(platform *types.Platform, fldPath *field.Path, openStackVa
 	if platform.BareMetal != nil {
 		validate(baremetal.Name, platform.BareMetal, func(f *field.Path) field.ErrorList {
 			return baremetalvalidation.ValidatePlatform(platform.BareMetal, network, f, c)
+		})
+	}
+	if platform.Ovirt != nil {
+		validate(ovirt.Name, platform.Ovirt, func(f *field.Path) field.ErrorList {
+			return ovirtvalidation.ValidatePlatform(platform.Ovirt, f)
 		})
 	}
 	return allErrs

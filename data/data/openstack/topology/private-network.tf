@@ -2,6 +2,7 @@ locals {
   nodes_cidr_block = var.cidr_block
   nodes_subnet_id  = var.machines_subnet_id != "" ? var.machines_subnet_id : openstack_networking_subnet_v2.nodes[0].id
   nodes_network_id = var.machines_network_id != "" ? var.machines_network_id : openstack_networking_network_v2.openshift-private[0].id
+  create_router    = var.machines_subnet_id != "" ? 0 : 1
 }
 
 data "openstack_networking_network_v2" "external_network" {
@@ -57,10 +58,6 @@ resource "openstack_networking_port_v2" "masters" {
 
   allowed_address_pairs {
     ip_address = var.api_int_ip
-  }
-
-  allowed_address_pairs {
-    ip_address = var.node_dns_ip
   }
 
   allowed_address_pairs {
@@ -131,6 +128,7 @@ resource "openstack_networking_floatingip_associate_v2" "api_fip" {
 }
 
 resource "openstack_networking_router_v2" "openshift-external-router" {
+  count               = local.create_router
   name                = "${var.cluster_id}-external-router"
   admin_state_up      = true
   external_network_id = data.openstack_networking_network_v2.external_network.id
@@ -138,6 +136,7 @@ resource "openstack_networking_router_v2" "openshift-external-router" {
 }
 
 resource "openstack_networking_router_interface_v2" "nodes_router_interface" {
-  router_id = openstack_networking_router_v2.openshift-external-router.id
+  count     = local.create_router
+  router_id = openstack_networking_router_v2.openshift-external-router[0].id
   subnet_id = local.nodes_subnet_id
 }

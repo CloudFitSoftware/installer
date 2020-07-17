@@ -11,6 +11,7 @@ import (
 
 	"github.com/metal3-io/baremetal-operator/pkg/bmc"
 	"github.com/metal3-io/baremetal-operator/pkg/hardware"
+	"github.com/metal3-io/baremetal-operator/pkg/provisioner/ironic/devicehints"
 	"github.com/openshift/installer/pkg/tfvars/internal/cache"
 	"github.com/openshift/installer/pkg/types/baremetal"
 	"github.com/pkg/errors"
@@ -22,8 +23,6 @@ type config struct {
 	BootstrapOSImage        string `json:"bootstrap_os_image,omitempty"`
 	ExternalBridge          string `json:"external_bridge,omitempty"`
 	ProvisioningBridge      string `json:"provisioning_bridge,omitempty"`
-	IgnitionURL             string `json:"ignition_url,omitempty"`
-	IgnitionURLCACert       string `json:"ignition_url_ca_cert,omitempty"`
 
 	// Data required for control plane deployment - several maps per host, because of terraform's limitations
 	Hosts         []map[string]interface{} `json:"hosts"`
@@ -34,7 +33,7 @@ type config struct {
 }
 
 // TFVars generates bare metal specific Terraform variables.
-func TFVars(libvirtURI, bootstrapProvisioningIP, bootstrapOSImage, externalBridge, provisioningBridge string, platformHosts []*baremetal.Host, image string, ignitionURL string, ignitionURLCACert string) ([]byte, error) {
+func TFVars(libvirtURI, bootstrapProvisioningIP, bootstrapOSImage, externalBridge, provisioningBridge string, platformHosts []*baremetal.Host, image string) ([]byte, error) {
 	bootstrapOSImage, err := cache.DownloadImageFile(bootstrapOSImage)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to use cached bootstrap libvirt image")
@@ -87,7 +86,14 @@ func TFVars(libvirtURI, bootstrapProvisioningIP, bootstrapOSImage, externalBridg
 
 		// Root device hints
 		rootDevice := make(map[string]interface{})
-		if profile.RootDeviceHints.HCTL != "" {
+
+		// host.RootDeviceHints overrides the root device hint in the profile
+		if host.RootDeviceHints != nil {
+			rootDeviceStringMap := devicehints.MakeHintMap(host.RootDeviceHints)
+			for key, value := range rootDeviceStringMap {
+				rootDevice[key] = value
+			}
+		} else if profile.RootDeviceHints.HCTL != "" {
 			rootDevice["hctl"] = profile.RootDeviceHints.HCTL
 		} else {
 			rootDevice["name"] = profile.RootDeviceHints.DeviceName
@@ -134,8 +140,6 @@ func TFVars(libvirtURI, bootstrapProvisioningIP, bootstrapOSImage, externalBridg
 		DriverInfos:             driverInfos,
 		RootDevices:             rootDevices,
 		InstanceInfos:           instanceInfos,
-		IgnitionURL:             ignitionURL,
-		IgnitionURLCACert:       ignitionURLCACert,
 	}
 
 	return json.MarshalIndent(cfg, "", "  ")

@@ -7,7 +7,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/openshift/installer/pkg/asset"
-	azureconfig "github.com/openshift/installer/pkg/asset/installconfig/azure"
 	gcpconfig "github.com/openshift/installer/pkg/asset/installconfig/gcp"
 	openstackconfig "github.com/openshift/installer/pkg/asset/installconfig/openstack"
 	ovirtconfig "github.com/openshift/installer/pkg/asset/installconfig/ovirt"
@@ -60,22 +59,18 @@ func (a *PlatformCredsCheck) Generate(dependencies asset.Parents) error {
 	case baremetal.Name, libvirt.Name, none.Name, vsphere.Name:
 		// no creds to check
 	case azure.Name:
-		_, err = azureconfig.GetSession()
+		_, err = ic.Azure.Session()
 		if err != nil {
 			return errors.Wrap(err, "creating Azure session")
 		}
 	case ovirt.Name:
-		ovirtConfig, err := ovirtconfig.NewConfig()
+		con, err := ovirtconfig.NewConnection()
 		if err != nil {
-			return errors.Wrap(err, "getting ovirt configuration")
-		}
-		con, err := ovirtconfig.GetConnection(ovirtConfig)
-		if err != nil {
-			return errors.Wrap(err, "establishing ovirt connection")
+			return errors.Wrap(err, "creating Engine connection")
 		}
 		err = con.Test()
 		if err != nil {
-			return errors.Wrap(err, "testing ovirt connection")
+			return errors.Wrap(err, "testing Engine connection")
 		}
 	default:
 		err = fmt.Errorf("unknown platform type %q", platform)

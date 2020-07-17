@@ -291,11 +291,6 @@ variable "openstack_api_int_ip" {
   description = "IP on the node subnet reserved for api-int VIP."
 }
 
-variable "openstack_node_dns_ip" {
-  type        = string
-  description = "IP on the nodes subnet reserved for node dns VIP."
-}
-
 variable "openstack_ingress_ip" {
   type        = string
   description = "IP on the nodes subnet reserved for the ingress VIP."
@@ -319,26 +314,28 @@ variable "openstack_master_flavor_name" {
 }
 
 variable "openstack_trunk_support" {
-  type = string
+  type    = bool
+  default = false
 
   description = <<EOF
-Contains 0 if the OpenStack Neutron trunk extension is disabled and 1 if it is enabled.
+False if the OpenStack Neutron trunk extension is disabled and True if it is enabled.
 EOF
 
 }
 
 variable "openstack_octavia_support" {
-  type = string
+  type = bool
+  default = false
 
   description = <<EOF
-Contains 0 if the OpenStack Octavia endpoint is missing and 1 if it exists.
+False if the OpenStack Octavia endpoint is missing and True if it exists.
 EOF
 
 }
 
-variable "openstack_master_server_group_id" {
+variable "openstack_master_server_group_name" {
   type        = string
-  description = "ID of the server group to assign the master servers to."
+  description = "Name of the server group for the master nodes."
 }
 
 variable "openstack_machines_subnet_id" {

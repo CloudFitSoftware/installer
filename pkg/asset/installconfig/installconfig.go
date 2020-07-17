@@ -14,6 +14,7 @@ import (
 	icazure "github.com/openshift/installer/pkg/asset/installconfig/azure"
 	icgcp "github.com/openshift/installer/pkg/asset/installconfig/gcp"
 	icopenstack "github.com/openshift/installer/pkg/asset/installconfig/openstack"
+	icovirt "github.com/openshift/installer/pkg/asset/installconfig/ovirt"
 	icvsphere "github.com/openshift/installer/pkg/asset/installconfig/vsphere"
 	"github.com/openshift/installer/pkg/types"
 	"github.com/openshift/installer/pkg/types/conversion"
@@ -30,6 +31,7 @@ type InstallConfig struct {
 	Config *types.InstallConfig `json:"config"`
 	File   *asset.File          `json:"file"`
 	AWS    *aws.Metadata        `json:"aws,omitempty"`
+	Azure  *icazure.Metadata    `json:"azure,omitempty"`
 }
 
 var _ asset.WritableAsset = (*InstallConfig)(nil)
@@ -133,8 +135,10 @@ func (a *InstallConfig) finish(filename string) error {
 	if a.Config.AWS != nil {
 		a.AWS = aws.NewMetadata(a.Config.Platform.AWS.Region, a.Config.Platform.AWS.Subnets, a.Config.AWS.ServiceEndpoints)
 	}
-
-	if err := validation.ValidateInstallConfig(a.Config, icopenstack.NewValidValuesFetcher()).ToAggregate(); err != nil {
+	if a.Config.Azure != nil {
+		a.Azure = icazure.NewMetadata(a.Config.Azure.CloudName)
+	}
+	if err := validation.ValidateInstallConfig(a.Config).ToAggregate(); err != nil {
 		if filename == "" {
 			return errors.Wrap(err, "invalid install config")
 		}
@@ -158,7 +162,7 @@ func (a *InstallConfig) finish(filename string) error {
 
 func (a *InstallConfig) platformValidation() error {
 	if a.Config.Platform.Azure != nil {
-		client, err := icazure.NewClient(context.TODO())
+		client, err := a.Azure.Client()
 		if err != nil {
 			return err
 		}
@@ -176,6 +180,12 @@ func (a *InstallConfig) platformValidation() error {
 	}
 	if a.Config.Platform.VSphere != nil {
 		return icvsphere.Validate(a.Config)
+	}
+	if a.Config.Platform.Ovirt != nil {
+		return icovirt.Validate(a.Config)
+	}
+	if a.Config.Platform.OpenStack != nil {
+		return icopenstack.Validate(a.Config)
 	}
 	return field.ErrorList{}.ToAggregate()
 }

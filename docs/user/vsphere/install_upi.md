@@ -34,7 +34,7 @@ NOTE: The cluster requires the bootstrap machine to deploy the OpenShift cluster
 
 The bootstrap and control plane machines must use Red Hat Enterprise Linux CoreOS (RHCOS) as the operating system.
 
-All of the VMs created must reside within the same folder in all of the vCenters used. For example, if the VM folder used is named MyFolder, then all of the VMs running OpenShift must be in the MyFolder folder.
+All of the VMs created must reside within the same folder. See [the note below](#check-folder-name-in-cloud-provider-manifest) for details about folder naming.
 
 The disk UUID on the VMs must be enabled: the `disk.EnableUUID` value must be set to `True`. This step is necessary so that the VMDK always presents a consistent UUID to the VM, thus allowing the disk to be mounted properly.
 
@@ -180,9 +180,61 @@ test-vsphere
 
 NOTE: The filename for `install-config` in the `INSTALL_DIR` must be `install-config.yaml`
 
+### Invoking the installer to get manifests
+Given that you have setup the `INSTALL_DIR` with the appropriate `install-config.yaml`, you can create manifests by using the `create manifests` target. For example,
+
+```console
+$ openshift-install --dir vsphere-test create manifests
+INFO Consuming Install Config from target directory
+```
+This produces two directories which contain many manifests that will be used for installation.
+```
+$  tree vsphere-test -d
+vsphere-test
+├── manifests
+└── openshift
+
+2 directories
+```
+
+#### Remove Machines and MachineSets
+
+Some of the manifests produced are for creating machinesets and machine objects:
+
+```
+$ find vsphere-test -name '*machineset*' -o -name '*master-machine*'
+vsphere-test/openshift/99_openshift-cluster-api_master-machines-1.yaml
+vsphere-test/openshift/99_openshift-cluster-api_master-machines-2.yaml
+vsphere-test/openshift/99_openshift-cluster-api_master-machines-0.yaml
+vsphere-test/openshift/99_openshift-cluster-api_worker-machineset-0.yaml
+```
+
+We should remove these, because we don't want to involve [the machine-API operator][machine-api-operator] during install. 
+
+From within the `INSTALL_DIR`:
+```console
+$ rm -f openshift/99_openshift-cluster-api_master-machines-*.yaml openshift/99_openshift-cluster-api_worker-machineset-*.yaml
+```
+
+#### Check Folder Name in Cloud Provider Manifest
+
+An absolute path to the cluster VM folder is specified in the `cloud-provider-config.yaml` manifest. The vSphere Cloud Provider uses the specified folder for cluster operations, such as provisioning volumes. By default, the
+folder name is specified as the cluster id:
+
+```console
+$ cat vsphere-test/manifests/cloud-provider-config.yaml | grep folder
+    folder = "/<datacenter>/vm/test-kndtw"
+```
+
+You must either:
+* change this value to match the absolute path of your VM folder; OR
+* create a VM folder at this path named with the cluster ID
+
+Note: `folder` may be specified in the install config, and this value will automatically be updated to match the provided value. See [customization.md](customization.md) for more details.
+
 ### Invoking the installer to get Ignition configs
 
-Given that you have setup the `INSTALL_DIR` with the appropriate `install-config`, you can create the Ignition configs by using the `create ignition-configs` target. For example,
+Given that you have setup the `INSTALL_DIR` with the appropriate manifests, you can create the Ignition configs by using the `create ignition-configs` target. For example,
 
 ```console
 $ openshift-install --dir test-vsphere create ignition-configs
@@ -375,11 +427,12 @@ cd test-vsphere
 create_tfvars.sh
 ```
 
-At a minimum, you will need to provide values for the following variables.
-* bootstrap_ignition_url
-* bootstrap_ip
-* control_plane_ips
-* compute_ips
+At a minimum, you need to set values for the following variables.
+* cluster_id
+* cluster_domain
+* vsphere_user
+* vsphere_password
+* ipam_token OR bootstrap_ip, control_plane_ips, and compute_ips
 
 Move the `tfvars` file to the directory with the example Terraform.
 

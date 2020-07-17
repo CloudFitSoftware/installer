@@ -77,7 +77,9 @@ The Master Nodes are placed in a single Server Group with "soft anti-affinity" p
 
 ### Worker Nodes
 
-The default deployment stands up 3 worker nodes. In our testing we determined that 2 was the minimum number of workers you could have to get a successful install, but we don't recommend running with that few. Worker nodes host the applications you run on OpenShift, so it is in your best interest to have more of them. See [here](https://docs.openshift.com/enterprise/3.0/architecture/infrastructure_components/kubernetes_infrastructure.html#node) for more information. The flavor assigned to the worker nodes should have at least 2 vCPUs, 8 GB RAM and 25 GB Disk. However, if you are experiencing `Out Of Memory` issues, or your installs are timing out, you should increase the size of your flavor to match the masters: 4 vCPUs and 16 GB RAM.
+The default deployment stands up 3 worker nodes. Worker nodes host the applications you run on OpenShift. The flavor assigned to the worker nodes should have at least 2 vCPUs, 8 GB RAM and 25 GB Disk. However, if you are experiencing `Out Of Memory` issues, or your installs are timing out, try increasing the size of your flavor to match the master nodes: 4 vCPUs and 16 GB RAM.
+
+See the [OpenShift documentation](https://docs.openshift.com/container-platform/4.4/architecture/control-plane.html#defining-workers_control-plane) for more information on the worker nodes.
 
 ### Bootstrap Node
 
@@ -120,9 +122,9 @@ sudo podman run \
 		--rw=write
 ```
 
-Look for the 99th percentile under `fsync/fdatasync/sync_file_range` -> `sync percentiles`.
+The command must be run as superuser.
 
-Caution about the measurement units: fio fluidly adjusts the scale between ms/µs/ns depending on the numbers.
+In the command output, look for the the 99th percentile of [fdatasync](https://linux.die.net/man/2/fdatasync) durations (`fsync/fdatasync/sync_file_range` -> `sync percentiles`). The number must be less than 10ms (or 10000µs: fio fluidly adjusts the scale between ms/µs/ns depending on the numbers).
 
 **Look for spikes.** Even if the baseline latency looks good, there may be spikes where it comes up, triggering issues that result in API being unavailable.
 
@@ -342,7 +344,7 @@ This assumes the floating IP and corresponding `*.apps` DNS record exists.
 
 If you cannot or don't want to pre-create a floating IP address, the installation should still succeed, however the installer will fail waiting for the API.
 
-**WARNING:** The installer will fail if it can't reach the bootstrap OpenShift API in 30 minutes.
+**WARNING:** The installer will fail if it can't reach the bootstrap OpenShift API in 20 minutes.
 
 Even if the installer times out, the OpenShift cluster should still come up. Once the bootstrapping process is in place, it should all run to completion. So you should be able to deploy OpenShift without any floating IP addresses and DNS records and create everything yourself after the cluster is up.
 

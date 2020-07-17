@@ -12,7 +12,9 @@
 * [Libvirt with KVM](docs/dev/libvirt/README.md) (development only)
 * [OpenStack](docs/user/openstack/README.md)
 * [OpenStack (UPI) (Experimental)](docs/user/openstack/install_upi.md)
-* [vSphere](docs/user/vsphere/install_upi.md)
+* [oVirt](docs/user/ovirt/install_ipi.md)
+* [vSphere](docs/user/vsphere/README.md)
+* [vSphere (UPI)](docs/user/vsphere/install_upi.md)
 
 ## Quick Start
 

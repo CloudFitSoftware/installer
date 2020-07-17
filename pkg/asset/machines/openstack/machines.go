@@ -4,7 +4,8 @@ package openstack
 import (
 	"fmt"
 
-	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/servergroups"
+	"github.com/gophercloud/gophercloud"
+	netext "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions"
 	"github.com/gophercloud/utils/openstack/clientconfig"
 	machineapi "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -39,17 +40,13 @@ func Machines(clusterID string, config *types.InstallConfig, pool *types.Machine
 	platform := config.Platform.OpenStack
 
 	az := ""
-	trunk := platform.TrunkSupport
-
-	provider := generateProvider(clusterID, platform, pool.Platform.OpenStack, osImage, az, role, userDataSecret, trunk)
+	provider, err := generateProvider(clusterID, platform, pool.Platform.OpenStack, osImage, az, role, userDataSecret)
+	if err != nil {
+		return nil, err
+	}
 
 	if role == "master" {
-		sg, err := getOrCreateServerGroup(platform.Cloud, clusterID+"-"+role, "soft-anti-affinity")
-		if err != nil {
-			return nil, err
-		}
-
-		provider.ServerGroupID = sg.ID
+		provider.ServerGroupName = clusterID + "-master"
 	}
 
 	total := int64(1)
@@ -85,7 +82,12 @@ func Machines(clusterID string, config *types.InstallConfig, pool *types.Machine
 	return machines, nil
 }
 
-func generateProvider(clusterID string, platform *openstack.Platform, mpool *openstack.MachinePool, osImage string, az string, role, userDataSecret string, trunk string) *openstackprovider.OpenstackProviderSpec {
+func generateProvider(clusterID string, platform *openstack.Platform, mpool *openstack.MachinePool, osImage string, az string, role, userDataSecret string) (*openstackprovider.OpenstackProviderSpec, error) {
+	trunkSupport, err := checkNetworkExtensionAvailability(platform.Cloud, "trunk")
+	if err != nil {
+		return nil, err
+	}
+
 	var networks []openstackprovider.NetworkParam
 	if platform.MachinesSubnet != "" {
 		networks = []openstackprovider.NetworkParam{{
@@ -133,13 +135,9 @@ func generateProvider(clusterID string, platform *openstack.Platform, mpool *ope
 		Networks:         networks,
 		AvailabilityZone: az,
 		SecurityGroups:   securityGroups,
-		Trunk:            trunkSupportBoolean(trunk),
+		Trunk:            trunkSupport,
 		Tags: []string{
 			fmt.Sprintf("openshiftClusterID=%s", clusterID),
-		},
-		ServerMetadata: map[string]string{
-			"Name":               fmt.Sprintf("%s-%s", clusterID, role),
-			"openshiftClusterID": clusterID,
 		},
 	}
 	if mpool.RootVolume != nil {
@@ -152,60 +150,28 @@ func generateProvider(clusterID string, platform *openstack.Platform, mpool *ope
 	} else {
 		spec.Image = osImage
 	}
-	return &spec
+	return &spec, nil
 }
 
-func trunkSupportBoolean(trunkSupport string) (result bool) {
-	if trunkSupport == "1" {
-		result = true
-	} else {
-		result = false
+func checkNetworkExtensionAvailability(cloud, alias string) (bool, error) {
+	opts := &clientconfig.ClientOpts{
+		Cloud: cloud,
 	}
-	return
-}
 
-// getOrCreateServerGroup gets a Nova server group with the given name and
-// policy or creates a new one if it doesn't exist.
-//
-// https://docs.openstack.org/api-ref/compute/?expanded=create-server-group-detail#server-groups-os-server-groups
-func getOrCreateServerGroup(cloud, serverGroupName, policy string) (*servergroups.ServerGroup, error) {
-	conn, err := clientconfig.NewServiceClient(
-		"compute",
-		&clientconfig.ClientOpts{
-			Cloud: cloud,
-		},
-	)
+	conn, err := clientconfig.NewServiceClient("network", opts)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 
-	// Microversion "2.15" is the first that supports "soft"-anti-affinity.
-	// Note that microversions starting from "2.64" use a new field
-	// accepting policies as a string instead of an array.
-	conn.Microversion = "2.15"
-
-	allPages, err := servergroups.List(conn).AllPages()
-	if err != nil {
-		return nil, err
-	}
-
-	allServerGroups, err := servergroups.ExtractServerGroups(allPages)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, serverGroup := range allServerGroups {
-		// Reuse the server group if it already exists and is empty
-		if serverGroup.Name == serverGroupName && len(serverGroup.Members) == 0 {
-			return &serverGroup, nil
+	res := netext.Get(conn, alias)
+	if res.Err != nil {
+		if _, ok := res.Err.(gophercloud.ErrDefault404); ok {
+			return false, nil
 		}
+		return false, res.Err
 	}
 
-	// Create a new group otherwise
-	return servergroups.Create(conn, &servergroups.CreateOpts{
-		Name:     serverGroupName,
-		Policies: []string{policy},
-	}).Extract()
+	return true, nil
 }
 
 // ConfigMasters sets the PublicIP flag and assigns a set of load balancers to the given machines

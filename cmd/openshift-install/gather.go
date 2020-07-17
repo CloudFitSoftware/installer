@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -26,6 +27,7 @@ import (
 	"github.com/openshift/installer/pkg/terraform"
 	gatheraws "github.com/openshift/installer/pkg/terraform/gather/aws"
 	gatherazure "github.com/openshift/installer/pkg/terraform/gather/azure"
+	gatherbaremetal "github.com/openshift/installer/pkg/terraform/gather/baremetal"
 	gathergcp "github.com/openshift/installer/pkg/terraform/gather/gcp"
 	gatherlibvirt "github.com/openshift/installer/pkg/terraform/gather/libvirt"
 	gatheropenstack "github.com/openshift/installer/pkg/terraform/gather/openstack"
@@ -34,6 +36,7 @@ import (
 	"github.com/openshift/installer/pkg/types"
 	awstypes "github.com/openshift/installer/pkg/types/aws"
 	azuretypes "github.com/openshift/installer/pkg/types/azure"
+	baremetaltypes "github.com/openshift/installer/pkg/types/baremetal"
 	gcptypes "github.com/openshift/installer/pkg/types/gcp"
 	libvirttypes "github.com/openshift/installer/pkg/types/libvirt"
 	openstacktypes "github.com/openshift/installer/pkg/types/openstack"
@@ -142,11 +145,13 @@ func runGatherBootstrapCmd(directory string) error {
 func logGatherBootstrap(bootstrap string, port int, masters []string, directory string) error {
 	logrus.Info("Pulling debug logs from the bootstrap machine")
 	client, err := ssh.NewClient("core", net.JoinHostPort(bootstrap, strconv.Itoa(port)), gatherBootstrapOpts.sshKeys)
-	if err != nil && strings.Contains(err.Error(), "ssh: handshake failed: ssh: unable to authenticate") {
-		return errors.Wrap(err, "failed to create SSH client, ensure the private key is added to your authentication agent (ssh-agent) or specified with the --key parameter")
-	} else if err != nil {
+	if err != nil {
+		if errors.Is(err, syscall.ECONNREFUSED) {
+			return errors.Wrap(err, "failed to connect to the bootstrap machine")
+		}
 		return errors.Wrap(err, "failed to create SSH client")
 	}
+
 	gatherID := time.Now().Format("20060102150405")
 	if err := ssh.Run(client, fmt.Sprintf("/usr/local/bin/installer-gather.sh --id %s %s", gatherID, strings.Join(masters, " "))); err != nil {
 		return errors.Wrap(err, "failed to run remote command")
@@ -183,6 +188,12 @@ func extractHostAddresses(config *types.InstallConfig, tfstate *terraform.State)
 		masters, err = gatherazure.ControlPlaneIPs(tfstate)
 		if err != nil {
 			logrus.Error(err)
+		}
+	case baremetaltypes.Name:
+		bootstrap = config.Platform.BareMetal.BootstrapProvisioningIP
+		masters, err = gatherbaremetal.ControlPlaneIPs(config, tfstate)
+		if err != nil {
+			return bootstrap, port, masters, err
 		}
 	case gcptypes.Name:
 		bootstrap, err = gathergcp.BootstrapIP(tfstate)

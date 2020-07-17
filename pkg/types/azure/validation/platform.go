@@ -1,10 +1,30 @@
 package validation
 
 import (
+	"fmt"
+	"sort"
+
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/openshift/installer/pkg/types"
 	"github.com/openshift/installer/pkg/types/azure"
+)
+
+var (
+	validCloudNames = map[azure.CloudEnvironment]bool{
+		azure.PublicCloud:       true,
+		azure.USGovernmentCloud: true,
+		azure.ChinaCloud:        true,
+		azure.GermanCloud:       true,
+	}
+
+	validCloudNameValues = func() []string {
+		v := make([]string, 0, len(validCloudNames))
+		for n := range validCloudNames {
+			v = append(v, string(n))
+		}
+		return v
+	}()
 )
 
 // ValidatePlatform checks that the specified platform is valid.
@@ -20,6 +40,7 @@ func ValidatePlatform(p *azure.Platform, publish types.PublishingStrategy, fldPa
 	}
 	if p.DefaultMachinePlatform != nil {
 		allErrs = append(allErrs, ValidateMachinePool(p.DefaultMachinePlatform, fldPath.Child("defaultMachinePlatform"))...)
+		allErrs = append(allErrs, ValidateDefaultDiskType(p.DefaultMachinePlatform, fldPath.Child("defaultMachinePlatform"))...)
 	}
 	if p.VirtualNetwork != "" {
 		if p.ComputeSubnet == "" {
@@ -40,5 +61,32 @@ func ValidatePlatform(p *azure.Platform, publish types.PublishingStrategy, fldPa
 			allErrs = append(allErrs, field.Required(fldPath.Child("networkResourceGroupName"), "must provide a network resource group when supplying subnets"))
 		}
 	}
+	if !validCloudNames[p.CloudName] {
+		allErrs = append(allErrs, field.NotSupported(fldPath.Child("cloudName"), p.CloudName, validCloudNameValues))
+	}
+
+	if _, ok := validOutboundTypes[p.OutboundType]; !ok {
+		allErrs = append(allErrs, field.NotSupported(fldPath.Child("outboundType"), p.OutboundType, validOutboundTypeValues))
+	}
+	if p.OutboundType == azure.UserDefinedRoutingOutboundType && p.VirtualNetwork == "" {
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("outboundType"), p.OutboundType, fmt.Sprintf("%s is only allowed when installing to pre-existing network", azure.UserDefinedRoutingOutboundType)))
+	}
+
 	return allErrs
 }
+
+var (
+	validOutboundTypes = map[azure.OutboundType]struct{}{
+		azure.LoadbalancerOutboundType:       {},
+		azure.UserDefinedRoutingOutboundType: {},
+	}
+
+	validOutboundTypeValues = func() []string {
+		v := make([]string, 0, len(validOutboundTypes))
+		for m := range validOutboundTypes {
+			v = append(v, string(m))
+		}
+		sort.Strings(v)
+		return v
+	}()
+)

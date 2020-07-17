@@ -6,27 +6,33 @@ variable "bootstrap_dns" {
 
 variable "ovirt_url" {
   type        = string
-  description = "The oVirt engine URL"
+  description = "The Engine URL"
 }
 
 variable "ovirt_username" {
   type        = string
-  description = "The name of user to access oVirt engine API"
+  description = "The name of user to access Engine API"
 }
 
 variable "ovirt_password" {
   type        = string
-  description = "The plain password of user to access oVirt engine API"
+  description = "The plain password of user to access Engine API"
+}
+
+variable "ovirt_tmp_template_vm_id" {
+  type        = string
+  default     = ""
+  description = "The ID of tmp VM which was created for creating the templated"
 }
 
 variable "ovirt_cluster_id" {
   type        = string
-  description = "The ID of oVirt's cluster"
+  description = "The ID of Cluster"
 }
 
 variable "ovirt_storage_domain_id" {
   type        = string
-  description = "The ID of oVirt's stoage domain for the template"
+  description = "The ID of Storage Domain for the template"
 }
 
 variable "openstack_base_image_name" {
@@ -43,30 +49,40 @@ variable "openstack_base_image_local_file_path" {
 variable "ovirt_network_name" {
   type        = string
   default     = "ovirtmgmt"
-  description = "The name of ovirt's logical network for the selected ovirt cluster."
+  description = "The name of Logical Network for the selected Engine cluster."
 }
 
-variable "ovirt_master_mem" {
-  type    = string
-  default = "8192"
+variable "ovirt_vnic_profile_id" {
+  type        = string
+  description = "The ID of the vNIC profile of Logical Network."
 }
 
-variable "ovirt_master_cpu" {
-  type    = number
-  default = 4
+variable "ovirt_master_memory" {
+  type        = string
+  description = "master VM memory in MiB"
 }
 
-variable "ovirt_template_mem" {
-  type    = string
-  default = "16384"
+variable "ovirt_master_cores" {
+  type        = string
+  description = "master VM number of cores"
 }
 
-variable "ovirt_template_cpu" {
-  type    = number
-  default = 4
+variable "ovirt_master_sockets" {
+  type        = string
+  description = "master VM number of sockets"
 }
 
-variable "ovirt_template_disk_size_gib" {
-  type    = number
-  default = 25
+variable "ovirt_master_os_disk_gb" {
+  type        = string
+  description = "master VM disk size in GiB"
+}
+
+variable "ovirt_master_vm_type" {
+  type        = string
+  description = "master VM type"
+}
+
+variable "ovirt_master_instance_type_id" {
+  type        = string
+  description = "master VM instance type ID"
 }

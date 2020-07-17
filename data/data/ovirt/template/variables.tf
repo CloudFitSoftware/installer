@@ -4,12 +4,18 @@ variable "cluster_id" {
 
 variable "ovirt_cluster_id" {
   type        = string
-  description = "The ID of oVirt's cluster"
+  description = "The ID of Cluster"
 }
 
 variable "ovirt_storage_domain_id" {
   type        = string
-  description = "The ID of oVirt's storage domain"
+  description = "The ID of Storage Domain"
+}
+
+variable "ovirt_tmp_template_vm_id" {
+  type        = string
+  default     = ""
+  description = "The ID of tmp VM which was created for creating the templated"
 }
 
 variable "ignition_bootstrap" {
@@ -30,19 +36,10 @@ variable "openstack_base_image_local_file_path" {
 
 variable "ovirt_network_name" {
   type        = string
-  default     = "ovirtmgmt"
-  description = "The name of ovirt's logical network for the selected ovirt cluster."
+  description = "The name of Logical Network for the selected Cluster."
 }
 
-variable "ovirt_template_mem" {
-  type = string
-}
-
-variable "ovirt_template_cpu" {
-  type = string
-}
-
-variable "disk_size_gib" {
-  type        = number
-  description = "The size of the template disk for worker/nodes in GiB."
+variable "ovirt_vnic_profile_id" {
+  type        = string
+  description = "The ID of the vNIC profile of Logical Network."
 }

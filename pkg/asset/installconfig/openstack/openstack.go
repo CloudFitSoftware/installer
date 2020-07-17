@@ -6,17 +6,21 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	survey "gopkg.in/AlecAivazis/survey.v1"
 
+	"github.com/openshift/installer/pkg/asset/installconfig/openstack/validation"
+	"github.com/openshift/installer/pkg/types"
 	"github.com/openshift/installer/pkg/types/openstack"
 )
 
+// Validate validates the given installconfig for OpenStack platform
+func Validate(ic *types.InstallConfig) error {
+	return validation.Validate(ic)
+}
+
 // Platform collects OpenStack-specific configuration.
 func Platform() (*openstack.Platform, error) {
-	validValuesFetcher := NewValidValuesFetcher()
-
-	cloudNames, err := validValuesFetcher.GetCloudNames()
+	cloudNames, err := getCloudNames()
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +48,7 @@ func Platform() (*openstack.Platform, error) {
 		return nil, err
 	}
 
-	networkNames, err := validValuesFetcher.GetNetworkNames(cloud)
+	networkNames, err := getNetworkNames(cloud)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +75,7 @@ func Platform() (*openstack.Platform, error) {
 		return nil, err
 	}
 
-	floatingIPNames, err := validValuesFetcher.GetFloatingIPNames(cloud, extNet)
+	floatingIPNames, err := getFloatingIPNames(cloud, extNet)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +102,7 @@ func Platform() (*openstack.Platform, error) {
 		return nil, err
 	}
 
-	flavorNames, err := validValuesFetcher.GetFlavorNames(cloud)
+	flavorNames, err := getFlavorNames(cloud)
 	if err != nil {
 		return nil, err
 	}
@@ -125,37 +129,10 @@ func Platform() (*openstack.Platform, error) {
 		return nil, err
 	}
 
-	trunkSupport := "0"
-	var i int
-	netExts, err := validValuesFetcher.GetNetworkExtensionsAliases(cloud)
-	if err != nil {
-		logrus.Warning("Could not retrieve networking extension aliases. Assuming trunk ports are not supported.")
-	} else {
-		sort.Strings(netExts)
-		i = sort.SearchStrings(netExts, "trunk")
-		if i != len(netExts) && netExts[i] == "trunk" {
-			trunkSupport = "1"
-		}
-	}
-
-	octaviaSupport := "0"
-	serviceCatalog, err := validValuesFetcher.GetServiceCatalog(cloud)
-	if err != nil {
-		logrus.Warning("Could not retrieve service catalog. Assuming there is no Octavia load balancer service available.")
-	} else {
-		sort.Strings(serviceCatalog)
-		i = sort.SearchStrings(serviceCatalog, "octavia")
-		if i != len(serviceCatalog) && serviceCatalog[i] == "octavia" {
-			octaviaSupport = "1"
-		}
-	}
-
 	return &openstack.Platform{
 		Cloud:           cloud,
 		ExternalNetwork: extNet,
 		FlavorName:      flavor,
 		LbFloatingIP:    lbFloatingIP,
-		TrunkSupport:    trunkSupport,
-		OctaviaSupport:  octaviaSupport,
 	}, nil
 }

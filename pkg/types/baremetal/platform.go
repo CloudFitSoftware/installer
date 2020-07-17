@@ -1,6 +1,7 @@
 package baremetal
 
 import (
+	"github.com/metal3-io/baremetal-operator/pkg/apis/metal3/v1alpha1"
 	"github.com/openshift/installer/pkg/ipnet"
 )
 
@@ -14,19 +15,22 @@ type BMC struct {
 
 // Host stores all the configuration data for a baremetal host.
 type Host struct {
-	Name            string `json:"name,omitempty" validate:"required,uniqueField"`
-	BMC             BMC    `json:"bmc"`
-	Role            string `json:"role"`
-	BootMACAddress  string `json:"bootMACAddress" validate:"required,uniqueField"`
-	HardwareProfile string `json:"hardwareProfile"`
+	Name            string                    `json:"name,omitempty" validate:"required,uniqueField"`
+	BMC             BMC                       `json:"bmc"`
+	Role            string                    `json:"role"`
+	BootMACAddress  string                    `json:"bootMACAddress" validate:"required,uniqueField"`
+	HardwareProfile string                    `json:"hardwareProfile"`
+	RootDeviceHints *v1alpha1.RootDeviceHints `json:"rootDeviceHints,omitempty"`
 }
 
 // Platform stores all the global configuration that all machinesets use.
 type Platform struct {
 	// LibvirtURI is the identifier for the libvirtd connection.  It must be
 	// reachable from the host where the installer is run.
-	// +optional
 	// Default is qemu:///system
+	//
+	// +kubebuilder:default="qemu:///system"
+	// +optional
 	LibvirtURI string `json:"libvirtURI,omitempty"`
 
 	// ClusterProvisioningIP is the IP on the dedicated provisioning network
@@ -38,6 +42,8 @@ type Platform struct {
 	// BootstrapProvisioningIP is the IP used on the bootstrap VM to
 	// bring up provisioning services that are used to create the
 	// control-plane machines
+	//
+	// +kubebuilder:validation:Format=ip
 	// +optional
 	BootstrapProvisioningIP string `json:"bootstrapProvisioningIP,omitempty"`
 
@@ -80,23 +86,26 @@ type Platform struct {
 	DefaultMachinePlatform *MachinePool `json:"defaultMachinePlatform,omitempty"`
 
 	// APIVIP is the VIP to use for internal API communication
+	//
+	// +kubebuilder:validation:Format=ip
 	APIVIP string `json:"apiVIP"`
 
 	// IngressVIP is the VIP to use for ingress traffic
+	//
+	// +kubebuilder:validation:Format=ip
 	IngressVIP string `json:"ingressVIP"`
-
-	// DNSVIP is the VIP to use for internal DNS communication
-	DNSVIP string `json:"dnsVIP"`
 
 	// BootstrapOSImage is a URL to override the default OS image
 	// for the bootstrap node. The URL must contain a sha256 hash of the image
 	// e.g https://mirror.example.com/images/qemu.qcow2.gz?sha256=a07bd...
+	//
 	// +optional
 	BootstrapOSImage string `json:"bootstrapOSImage,omitempty" validate:"omitempty,osimageuri,urlexist"`
 
 	// ClusterOSImage is a URL to override the default OS image
 	// for cluster nodes. The URL must contain a sha256 hash of the image
 	// e.g https://mirror.example.com/images/metal.qcow2.gz?sha256=3b5a8...
+	//
 	// +optional
 	ClusterOSImage string `json:"clusterOSImage,omitempty" validate:"omitempty,osimageuri,urlexist"`
 }

@@ -29,6 +29,7 @@ import (
 	routeclient "github.com/openshift/client-go/route/clientset/versioned"
 	"github.com/openshift/installer/pkg/asset"
 	"github.com/openshift/installer/pkg/asset/installconfig"
+	"github.com/openshift/installer/pkg/asset/logging"
 	assetstore "github.com/openshift/installer/pkg/asset/store"
 	targetassets "github.com/openshift/installer/pkg/asset/targets"
 	destroybootstrap "github.com/openshift/installer/pkg/destroy/bootstrap"
@@ -92,13 +93,15 @@ var (
 				cleanup := setupFileHook(rootOpts.dir)
 				defer cleanup()
 
+				// FIXME: pulling the kubeconfig and metadata out of the root
+				// directory is a bit cludgy when we already have them in memory.
 				config, err := clientcmd.BuildConfigFromFlags("", filepath.Join(rootOpts.dir, "auth", "kubeconfig"))
 				if err != nil {
 					logrus.Fatal(errors.Wrap(err, "loading kubeconfig"))
 				}
 
 				timer.StartTimer("Bootstrap Complete")
-				err = waitForBootstrapComplete(ctx, config, rootOpts.dir)
+				err = waitForBootstrapComplete(ctx, config)
 				if err != nil {
 					if err2 := logClusterOperatorConditions(ctx, config); err2 != nil {
 						logrus.Error("Attempted to gather ClusterOperator status after installation failure: ", err2)
@@ -197,6 +200,10 @@ func runTargetCmd(targets ...asset.WritableAsset) func(cmd *cobra.Command, args 
 		if err != nil {
 			logrus.Fatal(err)
 		}
+		if cmd.Name() != "cluster" {
+			logrus.Infof(logging.LogCreatedFiles(cmd.Name(), rootOpts.dir, targets))
+		}
+
 	}
 }
 
@@ -246,9 +253,7 @@ func addRouterCAToClusterCA(config *rest.Config, directory string) (err error) {
 	return nil
 }
 
-// FIXME: pulling the kubeconfig and metadata out of the root
-// directory is a bit cludgy when we already have them in memory.
-func waitForBootstrapComplete(ctx context.Context, config *rest.Config, directory string) (err error) {
+func waitForBootstrapComplete(ctx context.Context, config *rest.Config) (err error) {
 	client, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return errors.Wrap(err, "creating a Kubernetes client")
@@ -268,6 +273,7 @@ func waitForBootstrapComplete(ctx context.Context, config *rest.Config, director
 	silenceRemaining := logDownsample
 	previousErrorSuffix := ""
 	timer.StartTimer("API")
+	var lastErr error
 	wait.Until(func() {
 		version, err := discovery.ServerVersion()
 		if err == nil {
@@ -275,6 +281,7 @@ func waitForBootstrapComplete(ctx context.Context, config *rest.Config, director
 			timer.StopTimer("API")
 			cancel()
 		} else {
+			lastErr = err
 			silenceRemaining--
 			chunks := strings.Split(err.Error(), ":")
 			errorSuffix := chunks[len(chunks)-1]
@@ -290,6 +297,9 @@ func waitForBootstrapComplete(ctx context.Context, config *rest.Config, director
 	}, 2*time.Second, apiContext.Done())
 	err = apiContext.Err()
 	if err != nil && err != context.Canceled {
+		if lastErr != nil {
+			return errors.Wrap(lastErr, "failed waiting for Kubernetes API")
+		}
 		return errors.Wrap(err, "waiting for Kubernetes API")
 	}
 
@@ -300,7 +310,7 @@ func waitForBootstrapComplete(ctx context.Context, config *rest.Config, director
 // and waits for the bootstrap configmap to report that bootstrapping has
 // completed.
 func waitForBootstrapConfigMap(ctx context.Context, client *kubernetes.Clientset) error {
-	timeout := 40 * time.Minute
+	timeout := 30 * time.Minute
 	logrus.Infof("Waiting up to %v for bootstrapping to complete...", timeout)
 
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -342,9 +352,8 @@ func waitForInitializedCluster(ctx context.Context, config *rest.Config) error {
 
 	// Wait longer for baremetal, due to length of time it takes to boot
 	if assetStore, err := assetstore.NewStore(rootOpts.dir); err == nil {
-		installConfig := &installconfig.InstallConfig{}
-		if err := assetStore.Fetch(installConfig); err == nil {
-			if installConfig.Config.Platform.Name() == baremetal.Name {
+		if installConfig, err := assetStore.Load(&installconfig.InstallConfig{}); err == nil && installConfig != nil {
+			if installConfig.(*installconfig.InstallConfig).Config.Platform.Name() == baremetal.Name {
 				timeout = 60 * time.Minute
 			}
 		}
@@ -408,7 +417,7 @@ func waitForInitializedCluster(ctx context.Context, config *rest.Config) error {
 }
 
 // waitForConsole returns the console URL from the route 'console' in namespace openshift-console
-func waitForConsole(ctx context.Context, config *rest.Config, directory string) (string, error) {
+func waitForConsole(ctx context.Context, config *rest.Config) (string, error) {
 	url := ""
 	// Need to keep these updated if they change
 	consoleNamespace := "openshift-console"
@@ -488,7 +497,7 @@ func waitForInstallComplete(ctx context.Context, config *rest.Config, directory 
 		return err
 	}
 
-	consoleURL, err := waitForConsole(ctx, config, rootOpts.dir)
+	consoleURL, err := waitForConsole(ctx, config)
 	if err != nil {
 		return err
 	}

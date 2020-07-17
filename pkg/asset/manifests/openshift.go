@@ -13,7 +13,6 @@ import (
 
 	"github.com/openshift/installer/pkg/asset"
 	"github.com/openshift/installer/pkg/asset/installconfig"
-	"github.com/openshift/installer/pkg/asset/installconfig/azure"
 	"github.com/openshift/installer/pkg/asset/installconfig/gcp"
 	"github.com/openshift/installer/pkg/asset/installconfig/ovirt"
 	"github.com/openshift/installer/pkg/asset/machines"
@@ -97,7 +96,7 @@ func (o *Openshift) Generate(dependencies asset.Parents) error {
 
 	case azuretypes.Name:
 		resourceGroupName := clusterID.InfraID + "-rg"
-		session, err := azure.GetSession()
+		session, err := installConfig.Azure.Session()
 		if err != nil {
 			return err
 		}
@@ -214,7 +213,9 @@ func (o *Openshift) Generate(dependencies asset.Parents) error {
 		assetData["99_baremetal-provisioning-config.yaml"] = applyTemplateData(baremetalConfig.Files()[0].Data, bmTemplateData)
 	}
 
-	if platform == azuretypes.Name && installConfig.Config.Publish == types.InternalPublishingStrategy {
+	if platform == azuretypes.Name &&
+		installConfig.Config.Publish == types.InternalPublishingStrategy &&
+		installConfig.Config.Azure.OutboundType == azuretypes.LoadbalancerOutboundType {
 		privateClusterOutbound := &openshift.PrivateClusterOutbound{}
 		dependencies.Get(privateClusterOutbound)
 		assetData["99_private-cluster-outbound-service.yaml"] = applyTemplateData(privateClusterOutbound.Files()[0].Data, templateData)

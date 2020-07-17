@@ -37,10 +37,6 @@ variable "api_int_ip" {
   type = string
 }
 
-variable "node_dns_ip" {
-  type = string
-}
-
 variable "ingress_ip" {
   type = string
 }
@@ -50,11 +46,11 @@ variable "external_dns" {
 }
 
 variable "trunk_support" {
-  type = string
+  type = bool
 }
 
 variable "octavia_support" {
-  type = string
+  type = bool
 }
 
 variable "machines_subnet_id" {

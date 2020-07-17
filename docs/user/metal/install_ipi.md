@@ -39,7 +39,6 @@ purposes:
     following purposes:
     * API - This IP will be used to reach the cluster API.
     * Ingress - This IP will be used by cluster ingress traffic
-    * DNS - This IP will be used internally by the cluster for automating
       internal DNS requirements.
   * ***External DNS*** - While the cluster automates the internal DNS
     requirements, two external DNS records must be created in whatever DNS
@@ -135,13 +134,19 @@ platform should be considered experimental and still subject to change without
 backwards compatibility.  In particular, some items likely to change soon
 include:
 
-* The `hardwareProfile` is currently exposed as a way to allow specifying
+* **This field is deprecated. See rootDeviceHints instead.**
+  The `hardwareProfile` is currently exposed as a way to allow specifying
   different hardware parameters for deployment.  By default, we will deploy
   RHCOS to the first disk, but that may not be appropriate for all hardware.
   The `hardwareProfile` is the field we have available to change that.  This
   interface is subject to change.  In the meantime, hardware profiles can be
   found here:
   https://github.com/metal3-io/baremetal-operator/blob/master/pkg/hardware/profile.go#L48
+
+* *rootDeviceHints* -- Guidance for how to choose the device to
+  receive the image being provisioned. Documentation on using this field can
+  be found here
+  https://github.com/metal3-io/baremetal-operator/blob/master/docs/api.md
 
 ```yaml
 apiVersion: v1
@@ -163,7 +168,6 @@ platform:
   baremetal:
     apiVIP: 192.168.111.5
     ingressVIP: 192.168.111.4
-    dnsVIP: 192.168.111.3
     provisioningNetworkInterface: enp1s0
     hosts:
       - name: openshift-master-0
@@ -173,7 +177,8 @@ platform:
           username: admin
           password: password
         bootMACAddress: 00:11:07:4e:f6:68
-        hardwareProfile: default
+        rootDeviceHints:
+          minSizeGigabytes: 20
       - name: openshift-master-1
         role: master
         bmc:
@@ -181,7 +186,8 @@ platform:
           username: admin
           password: password
         bootMACAddress: 00:11:07:4e:f6:6c
-        hardwareProfile: default
+        rootDeviceHints:
+          minSizeGigabytes: 20
       - name: openshift-master-2
         role: master
         bmc:
@@ -189,7 +195,8 @@ platform:
           username: admin
           password: password
         bootMACAddress: 00:11:07:4e:f6:70
-        hardwareProfile: default
+        rootDeviceHints:
+          minSizeGigabytes: 20
       - name: openshift-worker-0
         role: worker
         bmc:
@@ -197,7 +204,8 @@ platform:
           username: admin
           password: password
         bootMACAddress: 00:11:07:4e:f6:71
-        hardwareProfile: default
+        rootDeviceHints:
+          minSizeGigabytes: 20
 pullSecret: ...
 sshKey: ...
 ```
@@ -211,15 +219,12 @@ sshKey: ...
 `defaultMachinePlatform` | | The default configuration used for machine pools without a platform configuration. |
 `apiVIP` | `api.<clusterdomain>` | The VIP to use for internal API communication. |
 `ingressVIP` | `test.apps.<clusterdomain>` | The VIP to use for ingress traffic. |
-`dnsVIP` | | The VIP to use for internal DNS communication. |
 
 ##### VIP Settings
 
 The `apiVIP` and `ingressVIP` settings must either be provided or
 pre-configured in DNS so that the default names resolve correctly (see
 the defaults in the table above).
-
-The `dnsVIP` setting has no default and must always be provided.
 
 ##### Describing Hosts
 
@@ -281,21 +286,6 @@ instead of the leaving the existing issues against the KNI fork of the installer
 platform.
 
 https://github.com/openshift-metal3/kni-installer/issues/74
-
-### install gather not supported
-
-When an installation fails, `openshift-install` will attempt to gather debug
-information from hosts.  This is not yet supported by the `baremetal` platform.
-
-https://github.com/openshift-metal3/kni-installer/issues/79
-
-### Provisioning subnet not fully configurable
-
-There are some install-config parameters to control templating of the provisioning
-network configuration, but fully supporting alternative subnets for the
-provisioning network is incomplete.
-
-https://github.com/openshift/installer/issues/2091
 
 ## Troubleshooting
 

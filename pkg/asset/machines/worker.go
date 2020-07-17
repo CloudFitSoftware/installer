@@ -23,7 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	awsapi "sigs.k8s.io/cluster-api-provider-aws/pkg/apis"
-	awsprovider "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsproviderconfig/v1beta1"
+	awsprovider "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsprovider/v1beta1"
 	azureapi "sigs.k8s.io/cluster-api-provider-azure/pkg/apis"
 	azureprovider "sigs.k8s.io/cluster-api-provider-azure/pkg/apis/azureprovider/v1beta1"
 	openstackapi "sigs.k8s.io/cluster-api-provider-openstack/pkg/apis"
@@ -88,6 +88,7 @@ func defaultAzureMachinePoolPlatform() azuretypes.MachinePool {
 	return azuretypes.MachinePool{
 		OSDisk: azuretypes.OSDisk{
 			DiskSizeGB: 128,
+			DiskType:   "Premium_LRS",
 		},
 	}
 }
@@ -95,6 +96,10 @@ func defaultAzureMachinePoolPlatform() azuretypes.MachinePool {
 func defaultGCPMachinePoolPlatform() gcptypes.MachinePool {
 	return gcptypes.MachinePool{
 		InstanceType: "n1-standard-4",
+		OSDisk: gcptypes.OSDisk{
+			DiskSizeGB: 128,
+			DiskType:   "pd-ssd",
+		},
 	}
 }
 
@@ -109,7 +114,17 @@ func defaultBareMetalMachinePoolPlatform() baremetaltypes.MachinePool {
 }
 
 func defaultOvirtMachinePoolPlatform() ovirttypes.MachinePool {
-	return ovirttypes.MachinePool{}
+	return ovirttypes.MachinePool{
+		CPU: &ovirttypes.CPU{
+			Cores:   4,
+			Sockets: 1,
+		},
+		MemoryMB: 16348,
+		OSDisk: &ovirttypes.Disk{
+			SizeGB: 120,
+		},
+		VMType: ovirttypes.VMTypeServer,
+	}
 }
 
 func defaultVSphereMachinePoolPlatform() vspheretypes.MachinePool {
@@ -247,7 +262,11 @@ func (w *Worker) Generate(dependencies asset.Parents) error {
 			mpool.Set(ic.Platform.Azure.DefaultMachinePlatform)
 			mpool.Set(pool.Platform.Azure)
 			if len(mpool.Zones) == 0 {
-				azs, err := azure.AvailabilityZones(ic.Platform.Azure.Region, mpool.InstanceType)
+				session, err := installConfig.Azure.Session()
+				if err != nil {
+					return errors.Wrap(err, "failed to fetch session for availability zones")
+				}
+				azs, err := azure.AvailabilityZones(session, ic.Platform.Azure.Region, mpool.InstanceType)
 				if err != nil {
 					return errors.Wrap(err, "failed to fetch availability zones")
 				}
@@ -340,8 +359,13 @@ func (w *Worker) Generate(dependencies asset.Parents) error {
 				machineSets = append(machineSets, set)
 			}
 		case ovirttypes.Name:
-			pool.Platform.Ovirt = &ovirttypes.MachinePool{}
+			mpool := defaultOvirtMachinePoolPlatform()
+			mpool.Set(ic.Platform.Ovirt.DefaultMachinePlatform)
+			mpool.Set(pool.Platform.Ovirt)
+			pool.Platform.Ovirt = &mpool
+
 			imageName, _ := rhcosutils.GenerateOpenStackImageName(string(*rhcosImage), clusterID.InfraID)
+
 			sets, err := ovirt.MachineSets(clusterID.InfraID, ic, &pool, imageName, "worker", "worker-user-data")
 			if err != nil {
 				return errors.Wrap(err, "failed to create worker machine objects for ovirt provider")
