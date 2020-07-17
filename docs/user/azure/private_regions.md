@@ -4,6 +4,14 @@ This document outlines the procedure for installation of an OpenShift 4.x cluste
 
 This document works with openshift 4.3.x and 4.4.x
 
+## Offline reference
+
+For deployments that are disconnected please see the following documentation.
+
+[Mirror the container registry](https://docs.openshift.com/container-platform/4.4/installing/install_config/installing-restricted-networks-preparations.html#installing-restricted-networks-preparations)
+
+Deploy that mirrored registry to azure, must be able to dns lookup.
+
 ## Install Procedures
 
 ### Prerequisites
