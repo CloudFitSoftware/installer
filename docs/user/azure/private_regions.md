@@ -101,6 +101,7 @@ sshKey: |
 
 Create or modify this file to ensure the right azure environment secrets get passed, ~/.azure/osServicePrincipal.json. All of these values are in plain text, they will be translated to base64 encoded secrets during the install.
 
+This must be valid azure public information, it is not used for the install process just command validation. These are not the values that will be used for the install.
 ```json
 {
   "subscriptionId":"<YOUR_AZURE_PUBLIC_SUBSCRIPTION_ID",
