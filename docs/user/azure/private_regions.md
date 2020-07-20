@@ -202,7 +202,7 @@ data = yaml.full_load(open(path));
 data["compute"][0]["replicas"] = 0;
 open(path, "w").write(yaml.dump(data, default_flow_style=False))'
 
-openshift-install create manifests || throw "Unable to create manifests"
+openshift-install create manifests
 rm -fv openshift/99_openshift-cluster-api_master-machines-*.yaml
 rm -fv openshift/99_openshift-cluster-api_worker-machineset-*.yaml
 
